@@ -529,12 +529,17 @@ def get_bin_info(bin_number):
 def format_card_message(result, user, elapsed_time):
     status_display = f"𝐀𝐩𝐩𝐫𝐨𝐯𝐞𝐝 ✅" if result['status'] == 'APPROVED' else f"𝐃𝐞𝐜𝐥𝐢𝐧𝐞𝐝 ❌"
     
+    # Get issuer/bank from bin_info if available
+    bin_info = get_bin_info(result['card'].split('|')[0]) if 'card' in result else None
+    issuer = bin_info.get('bank', 'UNKNOWN') if bin_info else 'UNKNOWN'
+    
     message = (
         f"{status_display}\n\n"
         f"𝐂𝐚𝐫𝐝\n  ↳ <code>{result['card']}</code>\n"
         f"𝐆𝐚𝐭𝐞𝐰𝐚𝐲 ⌁ <i>{result['gateway']}</i>\n"
         f"𝐑𝐞𝐬𝐩𝐨𝐧𝐬𝐞 ⌁ <i>{result['message']}</i>\n\n"
         f"𝐈𝐧𝐟𝐨 ⌁ {result['brand']} {result['type']}\n"
+        f"𝐈𝐬𝐬𝐮𝐞𝐫 ⌁ {issuer}\n"
         f"𝐂𝐨𝐮𝐧𝐭𝐫𝐲 ⌁ {result['country']}\n\n"
         f"𝐑𝐞𝐪 ⌁ <a href='tg://user?id={user.id}'>{user.first_name}</a>\n"
         f"𝐃𝐞𝐯 ⌁ <a href='tg://user?id={OWNER_ID}'>⎯꯭𖣐᪵‌𐎓⏤‌‌𝐃𝐚𝐫𝐤𝐛𝐨𝐲◄⏤‌‌ꭙ‌‌⁷ ꯭</a>\n"
