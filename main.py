@@ -751,7 +751,7 @@ def au_command(message):
 def dot_au_command(message):
     handle_card_check(message, check_au_cc, "Stripe Auth 2")
 
-PP_API_URL = "https://au-api-storm.onrender.com/gate=stripe5/key=wasdark/cc="
+PP_API_URL = "https://paypal-ox9w.onrender.com/gate=1/key=darkwaslost/cc="
 
 # Add this checking function with your other check functions
 def check_pp_cc(cc):
