@@ -751,6 +751,21 @@ def au_command(message):
 def dot_au_command(message):
     handle_card_check(message, check_au_cc, "Stripe Auth 2")
 
+PP_API_URL = "https://au-api-storm.onrender.com/gate=stripe5/key=wasdark/cc="
+
+# Add this checking function with your other check functions
+def check_pp_cc(cc):
+    return check_cc_generic(cc, PP_API_URL, "Paypal [2$]")
+
+# Add these command handlers with your other command handlers
+@bot.message_handler(commands=['pp'])
+def pp_command(message):
+    handle_card_check(message, check_pp_cc, "Paypal [2$]")
+
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.au ') or m.text == '.pp'))
+def dot_pp_command(message):
+    handle_card_check(message, check_pp_cc, "Paypal [2$]")
+
 # Start command and menu handlers
 @bot.message_handler(commands=['start'])
 def start_command(message):
