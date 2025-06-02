@@ -766,7 +766,7 @@ def ax_command(message):
 def dot_ax_command(message):
     handle_card_check(message, check_ax_cc, "Stripe Paypal [0.5$]")
 
-PP_API_URL = "https://paypal-bdvj.onrender.com/gate=b3/key=wasdarkboy/cc='
+PP_API_URL = "https://paypal-bdvj.onrender.com/gate=b3/key=wasdarkboy/cc="
 
 def check_pp_cc(cc):
     return check_cc_generic(cc, PP_API_URL, "Paypal [2$]")
