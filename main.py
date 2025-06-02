@@ -772,12 +772,12 @@ def check_pp_cc(cc):
     return check_cc_generic(cc, PP_API_URL, "Paypal [2$]")
 
 @bot.message_handler(commands=['pp'])
-def ax_command(message):
-    handle_card_check(message, check_ax_cc, "Paypal [2$]")
+def pp_command(message):
+    handle_card_check(message, check_pp_cc, "Paypal [2$]")
 
 @bot.message_handler(func=lambda m: m.text and (m.text.startswith('.pp ') or m.text == '.pp'))
 def dot_pp_command(message):
-    handle_card_check(message, check_ax_cc, "Paypal [2$]")
+    handle_card_check(message, check_pp_cc, "Paypal [2$]")
 
 # Start command and menu handlers
 @bot.message_handler(commands=['start'])
