@@ -762,7 +762,7 @@ def check_pp_cc(cc):
 def pp_command(message):
     handle_card_check(message, check_pp_cc, "Paypal [2$]")
 
-@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.au ') or m.text == '.pp'))
+@bot.message_handler(func=lambda m: m.text and (m.text.startswith('.pp ') or m.text == '.pp'))
 def dot_pp_command(message):
     handle_card_check(message, check_pp_cc, "Paypal [2$]")
 
