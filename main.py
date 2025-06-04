@@ -306,7 +306,7 @@ def check_cc_generic(cc, api_url, gateway_name):
                 status = data.get('status', 'Declined').replace('Declined ❌', 'DECLINED').replace('Declined', 'DECLINED')
                 message = data.get('response', 'Your card was declined.')
                 
-                if 'Approved' in status:
+                if 'Approved' in status or 'Passed' in status:
                     status = 'APPROVED'
                     return {
                         'status': 'APPROVED',
